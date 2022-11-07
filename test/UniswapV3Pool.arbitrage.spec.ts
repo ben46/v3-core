@@ -133,6 +133,7 @@ describe('UniswapV3Pool arbitrage tests', () => {
             amount0Delta: BigNumber
             amount1Delta: BigNumber
           }> {
+            // 这个tester是一个智能合约,模拟开发者,要支持uniswap进行callback
             const { amount0Delta, amount1Delta, nextSqrtRatio } = await tester.callStatic.getSwapResult(
               pool.address,
               zeroForOne,

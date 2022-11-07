@@ -139,6 +139,8 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
     /// @dev This function is gas optimized to avoid a redundant extcodesize check in addition to the returndatasize
     /// check
     function balance0() private view returns (uint256) {
+        // staticcall和call是一样的,但是呢不带value参数,也就是不能穿eth payable
+        // 包含op code有 create,Create2...
         (bool success, bytes memory data) = token0.staticcall(
             abi.encodeWithSelector(IERC20Minimal.balanceOf.selector, address(this))
         );
@@ -150,6 +152,7 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
     /// @dev This function is gas optimized to avoid a redundant extcodesize check in addition to the returndatasize
     /// check
     function balance1() private view returns (uint256) {
+        //什么是staticcall
         (bool success, bytes memory data) = token1.staticcall(
             abi.encodeWithSelector(IERC20Minimal.balanceOf.selector, address(this))
         );
@@ -302,7 +305,7 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
         int128 liquidityDelta;
     }
 
-    /// @dev Effect some changes to a position
+    /// @dev Effect some changes to a position修改仓位
     /// @param params the position details and the change to the position's liquidity to effect
     /// @return position a storage pointer referencing the position with the given owner and tick range
     /// @return amount0 the amount of token0 owed to the pool, negative if the pool should pay the recipient
@@ -311,16 +314,17 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
         private
         noDelegateCall
         returns (
-            Position.Info storage position,
-            int256 amount0,
-            int256 amount1
+            Position.Info storage position,/// 返回一个指向position的指针，该指针储存在storage中
+            /// position包含了拥有者，做市价格范围的信息
+            int256 amount0,/// 返回token0的数量，如果需要支付给接受者，则为负值??????
+            int256 amount1/// 返回token1的数量，如果需要支付给接受者，则为负值????
         )
     {
-        checkTicks(params.tickLower, params.tickUpper);
+        checkTicks(params.tickLower, params.tickUpper);//忽略
 
-        Slot0 memory _slot0 = slot0; // SLOAD for gas optimization
+        Slot0 memory _slot0 = slot0; // 下面多次调用,所以存在memory中减少对storage的读取,可以省gas
 
-        position = _updatePosition(
+        position = _updatePosition( // 带进来的参数,复制给position,返回是position指针,指向storage中的地址
             params.owner,
             params.tickLower,
             params.tickUpper,
@@ -464,12 +468,13 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
     /// @dev noDelegateCall is applied indirectly via _modifyPosition
     function mint(
         address recipient,
-        int24 tickLower,
+        int24 tickLower,//tick成等幂数组排列(也就是价格越大,tick之间的差距越大)
         int24 tickUpper,
         uint128 amount,
         bytes calldata data
     ) external override lock returns (uint256 amount0, uint256 amount1) {
         require(amount > 0);
+        //修改仓位,这个函数里面禁止了delegatecall,不知道为啥
         (, int256 amount0Int, int256 amount1Int) = _modifyPosition(
             ModifyPositionParams({
                 owner: recipient,
@@ -484,8 +489,9 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
 
         uint256 balance0Before;
         uint256 balance1Before;
-        if (amount0 > 0) balance0Before = balance0();
+        if (amount0 > 0) balance0Before = balance0();//原来有多少钱
         if (amount1 > 0) balance1Before = balance1();
+        //回调函数
         IUniswapV3MintCallback(msg.sender).uniswapV3MintCallback(amount0, amount1, data);
         if (amount0 > 0) require(balance0Before.add(amount0) <= balance0(), 'M0');
         if (amount1 > 0) require(balance1Before.add(amount1) <= balance1(), 'M1');
@@ -494,6 +500,7 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
     }
 
     /// @inheritdoc IUniswapV3PoolActions
+    //丰收咯
     function collect(
         address recipient,
         int24 tickLower,

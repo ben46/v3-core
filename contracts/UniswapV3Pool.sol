@@ -54,6 +54,7 @@ contract UniswapV3Pool is IUniswapV3Pool, NoDelegateCall {
     uint128 public immutable override maxLiquidityPerTick;
 
     struct Slot0 {
+        //中文
         // the current price
         uint160 sqrtPriceX96;
         // the current tick
